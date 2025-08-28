@@ -2,7 +2,7 @@ import React, { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import apiClient from "../services/api-client";
-import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
+// import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
 import "../styles/login.css";
 
 const LoginPage = () => {
@@ -41,34 +41,34 @@ const LoginPage = () => {
     }
   };  
 
-  const googleSignin = async (credentialResponse: CredentialResponse) => {
-    const { credential } = credentialResponse;
-    if (!credential) throw new Error("Google credential is missing");
+  // const googleSignin = async (credentialResponse: CredentialResponse) => {
+  //   const { credential } = credentialResponse;
+  //   if (!credential) throw new Error("Google credential is missing");
 
-    const response = await apiClient.post("/auth/google", { credential });
-    return response.data;
-  };
+  //   const response = await apiClient.post("/auth/google", { credential });
+  //   return response.data;
+  // };
 
-  const onGoogleLoginSuccess = async (credentialResponse: CredentialResponse) => {
-    try {
-      const res = await googleSignin(credentialResponse);
-      localStorage.setItem("user", JSON.stringify(res));
-      setUser(res);
-      setSuccessMessage("✅ Google login successful! Redirecting to your dashboard...");
-      setError("");
+  // const onGoogleLoginSuccess = async (credentialResponse: CredentialResponse) => {
+  //   try {
+  //     const res = await googleSignin(credentialResponse);
+  //     localStorage.setItem("user", JSON.stringify(res));
+  //     setUser(res);
+  //     setSuccessMessage("✅ Google login successful! Redirecting to your dashboard...");
+  //     setError("");
   
-      // ⏳ Real 2-second delay before redirect
-      await new Promise((res) => setTimeout(res, 2000));
-      navigate("/dashboard");
-    } catch (err) {
-      console.error("Google Signin error!", err);
-      setError("Google login failed. Please try again.");
-    }
-  };  
+  //     // ⏳ Real 2-second delay before redirect
+  //     await new Promise((res) => setTimeout(res, 2000));
+  //     navigate("/dashboard");
+  //   } catch (err) {
+  //     console.error("Google Signin error!", err);
+  //     setError("Google login failed. Please try again.");
+  //   }
+  // };  
 
-  const onGoogleLoginError = () => {
-    setError("Google login failed. Please try again.");
-  };
+  // const onGoogleLoginError = () => {
+  //   setError("Google login failed. Please try again.");
+  // };
 
   return (
     <div className="login-container">
