@@ -1,7 +1,7 @@
 import React, { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
-import apiClient from "../services/api-client";
+// import apiClient from "../services/api-client";
 // import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
 import "../styles/login.css";
 
@@ -11,7 +11,7 @@ const LoginPage = () => {
     throw new Error("AuthContext is null");
   }
 
-  const { login, setUser } = authContext;
+  const { login } = authContext; // setUser
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
