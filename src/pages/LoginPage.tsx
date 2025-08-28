@@ -112,14 +112,14 @@ const LoginPage = () => {
 
         <p className="mt-3">Don’t have an account? <Link to="/register">Register here</Link></p>
 
-        <div className="google-login mt-3">
+{/*         <div className="google-login mt-3">
           <GoogleLogin
             onSuccess={onGoogleLoginSuccess}
             onError={onGoogleLoginError}
             theme="outline"
             size="large"
           />
-        </div>
+        </div> */}
       </div>
     </div>
   );
