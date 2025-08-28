@@ -137,7 +137,7 @@ export default function DashboardPage() {
   if (error)   return <p style={{ color: "red" }}>Error: {error}</p>;
   if (!agenda) return <p>Agenda not found.</p>;
 
-  const { title, prompt, createdAt, tweets } = agenda;
+  const { title, createdAt, tweets } = agenda;
 
   // Compute KPI Metrics
   const totalReplies = tweets.filter((t) => !!t.replyTweetId).length;
