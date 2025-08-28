@@ -1,7 +1,9 @@
+// src/pages/ProfilePage.tsx
+import React from "react";
 import { useAuth } from "../context/AuthContext";
 import "../styles/profile.css";
 
-const ProfilePage = () => {
+const ProfilePage: React.FC = () => {
   const { user } = useAuth();
   const currentTime = new Date().toLocaleString();
 
@@ -14,10 +16,15 @@ const ProfilePage = () => {
           className="profile-picture"
         />
         <h2 className="profile-title">
-          👋 Welcome{user ? `, ${user.username}` : ""}!
+          👋 Hello{user ? `, ${user.username}` : ""}!
         </h2>
+        {user && (
+          <>
+            <p className="profile-email">📧 {user.email}</p>
+          </>
+        )}
         <p className="profile-text">
-          This is your personal Agendify Profile.
+          Welcome to your personal Agendify dashboard.
         </p>
         <p className="profile-timestamp">🕒 Logged in at: {currentTime}</p>
       </div>

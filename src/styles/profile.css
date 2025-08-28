@@ -1,73 +1,83 @@
+/* src/styles/profile.css */
+
+/* Reuse your site’s variables */
+:root {
+  --font-sans: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --color-bg: #f7f6fc;
+  --color-text: #333333;
+  --color-accent: #6c5ce7;
+  --card-shadow: rgba(0, 0, 0, 0.1) 0px 4px 12px;
+}
+
+body {
+  background: var(--color-bg);
+}
+
+/* Center container, light background */
 .profile-container {
   display: flex;
   justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background: #0c064f;
-  padding: 1rem;
+  align-items: flex-start;
+  padding: 4rem 2rem;
+  min-height: calc(100vh - 64px); /* adjust if you have a fixed navbar */
 }
 
+/* White card with soft shadow */
 .profile-card {
-  background: rgba(255, 255, 255, 0.05);
+  background: white;
   padding: 2.5rem;
-  border-radius: 20px;
-  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(10px);
-  min-width: 320px;
-  max-width: 90vw;
-  width: fit-content;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  max-width: 400px;
+  width: 100%;
   text-align: center;
 }
 
+/* Circular photo with matching shadow */
 .profile-picture {
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   object-fit: cover;
   border-radius: 50%;
-  border: 2px solid white;
-  margin-bottom: 1rem;
-  animation: glow 2s infinite alternate;
+  margin: 0 auto 1rem;
+  box-shadow: var(--card-shadow);
 }
 
-/* New glow animation */
-@keyframes glow {
-  0% {
-    box-shadow: 0 0 5px white;
-  }
-  100% {
-    box-shadow: 0 0 20px white;
-  }
-}
-
+/* Accent heading */
 .profile-title {
-  font-size: 2rem;
-  font-weight: bold;
-  color: white;
-  margin-bottom: 0.8rem;
-  word-break: break-word;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
+  font-size: 1.75rem;
+  color: var(--color-accent);
+  margin-bottom: 0.5rem;
 }
 
+/* Secondary info */
+.profile-email,
+.profile-sessions {
+  font-size: 1rem;
+  color: var(--color-text);
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+/* Description text */
 .profile-text {
-  font-size: 1.1rem;
-  color: #f0f0f0;
+  font-size: 1rem;
+  color: var(--color-text);
   margin-bottom: 1rem;
 }
 
+/* Timestamp */
 .profile-timestamp {
-  font-size: 0.9rem;
-  color: #cccccc;
+  font-size: 0.875rem;
+  color: #666666;
 }
 
+/* Responsive */
 @media (max-width: 768px) {
   .profile-card {
-    padding: 1.8rem;
+    padding: 2rem;
   }
-
   .profile-title {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
   }
 }

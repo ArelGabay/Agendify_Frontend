@@ -1,52 +1,55 @@
 // src/components/Navbar.tsx
+import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "../styles/navbar.css";
 
-const Navbar = () => {
+const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
 
-  const handleLogout = () => {
-    logout();
-  };
-
   return (
     <nav className="navbar">
       <div className="navbar-container">
-        <Link to="/" className="navbar-logo">Agendify</Link>
-
-        <ul className="navbar-links">
-          <li>
-            <Link to="/"      className={`nav-link ${isActive("/")      ? "active" : ""}`}>Home</Link>
-          </li>
-          <li>
-            <Link to="/about" className={`nav-link ${isActive("/about") ? "active" : ""}`}>About Us</Link>
-          </li>
-          <li>
-            <Link to="/pricing" className={`nav-link ${isActive("/pricing") ? "active" : ""}`}>Pricing</Link>
-          </li>
-        </ul>
+        <Link to="/" className="navbar-logo">
+          Agendify
+        </Link>
 
         <div className="navbar-auth">
           {user ? (
             <>
-              <Link to="/agendas" className={`btn ${isActive("/agendas") ? "active" : ""}`}>
+              <Link
+                to="/agendas"
+                className={`nav-btn ${isActive("/agendas") ? "active" : ""}`}
+              >
                 Agendas
               </Link>
-              <Link to="/profile" className={`btn ${isActive("/profile") ? "active" : ""}`}>
+              <Link
+                to="/profile"
+                className={`nav-btn ${isActive("/profile") ? "active" : ""}`}
+              >
                 Profile
               </Link>
-              <Link to="/home" onClick={handleLogout} className={`btn ${isActive("/profile") ? "active" : ""}`}>
+              <button onClick={logout} className="nav-btn logout">
                 Logout
-              </Link>
+              </button>
             </>
           ) : (
             <>
-              <Link to="/login"    className={`btn ${isActive("/login")    ? "active" : ""}`}>Sign in</Link>
-              <Link to="/register" className={`btn ${isActive("/register") ? "active" : ""}`}>Sign up</Link>
+              <Link
+                to="/login"
+                className={`nav-btn ${isActive("/login") ? "active" : ""}`}
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/register"
+                className={`nav-btn ${isActive("/register") ? "active" : ""}`}
+              >
+                Sign Up
+              </Link>
             </>
           )}
         </div>
