@@ -1,4 +1,3 @@
-// src/pages/DashboardPage.tsx
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
@@ -10,12 +9,13 @@ import {
   PointElement,
   Tooltip,
   Legend,
+  ChartOptions
 } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import { Bar, Line } from "react-chartjs-2";
 import "../styles/stats.css";
 
-// ─── Register Chart.js components + datalabels plugin ─────────────────────────
+// Register Chart.js components + datalabels plugin
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -27,12 +27,12 @@ ChartJS.register(
   ChartDataLabels
 );
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// Types
 type EngagementMetrics = {
   like_count: number;
-  reply_count: number;   // replies *to* your reply
+  reply_count: number;
   views_count: number;
-  retweet_count: number; // number of retweets
+  retweet_count: number;
 };
 
 type TweetItem = {
@@ -62,8 +62,7 @@ export default function DashboardPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const navigate = useNavigate();
 
-
-  // ─── Fetch agenda data ────────────────────────────────────────────────────────
+  // Fetch agenda data
   useEffect(() => {
     if (!agendaId) return;
     fetch(
@@ -78,9 +77,9 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [agendaId]);
 
-  // ─── Inject Twitter widgets (for “Replies History” tab) ───────────────────────
+  // Inject Twitter widgets (for “Replies History” tab)
   function tryLoadWidgets() {
-    const tw = window.twttr;
+    const tw = (window as any).twttr;
     if (tw?.widgets?.load) {
       const container = document.querySelector(".replies-carousel");
       tw.widgets.load(container as HTMLElement | null);
@@ -140,7 +139,7 @@ export default function DashboardPage() {
 
   const { title, prompt, createdAt, tweets } = agenda;
 
-  // ─── Compute KPI Metrics ──────────────────────────────────────────────────────
+  // Compute KPI Metrics
   const totalReplies = tweets.filter((t) => !!t.replyTweetId).length;
 
   let engagedTweetsCount = 0;
@@ -159,11 +158,9 @@ export default function DashboardPage() {
     const replies   = em?.reply_count    || 0;
     const views     = em?.views_count    || 0;
     const retweets  = em?.retweet_count  || 0;
-
     totalLikes    += likes;
     totalViews    += views;
     totalRetweets += retweets;
-
     if (likes > 0 || replies > 0 || views > 0 || retweets > 0) {
       engagedTweetsCount++;
     } else {
@@ -175,7 +172,7 @@ export default function DashboardPage() {
     ? Math.round((engagedTweetsCount / tweets.length) * 100)
     : 0;
 
-  // ─── “Replies You Posted” Over Time (vertical bar) ─────────────────────────
+  // “Replies You Posted” Over Time (vertical bar)
   const repliedTweets = tweets.filter((t) => !!t.replyTweetId);
   const repliesByDay: { [day: string]: number } = {};
   repliedTweets.forEach((t) => {
@@ -194,7 +191,7 @@ export default function DashboardPage() {
       },
     ],
   };
-  const barOptions = {
+  const barOptions: ChartOptions<"bar"> = {
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
@@ -205,22 +202,22 @@ export default function DashboardPage() {
         grid: { color: "#ece9f6" },
         ticks: {
           color: "#7b809a",
-          font: { size: 13, weight: "bold" as const },
+          font: { size: 13, weight: "bold" },
         },
       },
       y: {
         grid: { color: "#ece9f6" },
+        beginAtZero: true,
         ticks: {
           color: "#7b809a",
-          font: { size: 13, weight: "bold" as const },
+          font: { size: 13, weight: "bold" },
           stepSize: 1,
-          beginAtZero: true,
         },
       },
     },
-  } as const;
+  };
 
-  // ─── Engagement Timeline (line chart) ────────────────────────────────────────
+  // Engagement Timeline (line chart)
   const engagementByDay: {
     [date: string]: { replies: number; likes: number; views: number };
   } = {};
@@ -286,7 +283,7 @@ export default function DashboardPage() {
       },
     ],
   };
-  const engagementTimelineOptions = {
+  const engagementTimelineOptions: ChartOptions<"line"> = {
     maintainAspectRatio: false,
     plugins: {
       legend: { display: true, position: "top" },
@@ -295,18 +292,18 @@ export default function DashboardPage() {
       x: {
         title: { display: true, text: "Date" },
         grid: { color: "#ece9f6" },
-        ticks: { color: "#7b809a", font: { size: 13, weight: "bold" as const } },
+        ticks: { color: "#7b809a", font: { size: 13, weight: "bold" } },
       },
       y: {
         title: { display: true, text: "Count" },
         beginAtZero: true,
         grid: { color: "#ece9f6" },
-        ticks: { color: "#7b809a", font: { size: 13, weight: "bold" as const } },
+        ticks: { color: "#7b809a", font: { size: 13, weight: "bold" } },
       },
     },
-  } as const;
+  };
 
-  // ─── “Top 5 Replies by Replies” & “Top 5 Replies by Views” ─────────────────
+  // Top 5 Replies by Replies & Views
   const allReplies = tweets.filter((t) => !!t.replyTweetId);
   const sortedByReplies = allReplies
     .slice()
@@ -327,15 +324,10 @@ export default function DashboardPage() {
   } else if (filter === "views") {
     displayedTweets = sortedByViews;
   } else {
-    displayedTweets = tweets; // “all”
+    displayedTweets = tweets;
   }
 
-  // ─── Build exactly those five counts in the requested order ───────────────────
-  // 1. Total Replies                      = totalReplies
-  // 2. Viewed Replies  (reply with views) = # of replies where views_count > 0
-  // 3. Replies on My Reply                = # of replies where reply_count > 0
-  // 4. Liked                              = # of replies where like_count > 0
-  // 5. Retweeted                          = # of replies where retweet_count > 0
+  // Build counts
   const countViewedReplies = repliedTweets.filter(
     (t) => (t.engagement?.views_count || 0) > 0
   ).length;
@@ -349,7 +341,7 @@ export default function DashboardPage() {
     (t) => (t.engagement?.retweet_count || 0) > 0
   ).length;
 
-  // ─── Horizontal Bar (five separate bars, in that exact order) ───────────────
+  // Horizontal Bar chart
   const histogramData = {
     labels: [
       "Total Replies",
@@ -381,8 +373,8 @@ export default function DashboardPage() {
     ],
   };
 
-  const histogramOptions = {
-    indexAxis: "y" as const,
+  const histogramOptions: ChartOptions<"bar"> = {
+    indexAxis: "y",
     maintainAspectRatio: false,
     scales: {
       x: {
@@ -393,6 +385,7 @@ export default function DashboardPage() {
       y: {
         stacked: false,
         grid: { display: false },
+        beginAtZero: true,
         ticks: {
           color: "#34495e",
           font: { size: 14 },
@@ -400,22 +393,21 @@ export default function DashboardPage() {
       },
     },
     plugins: {
-      legend: {
-        display: false,
-      },
+      legend: { display: false },
       datalabels: {
-        anchor: "end" as const,
-        align: "end" as const,
+        anchor: "end",
+        align: "end",
         color: "#2c3e50",
-        font: { weight: "bold" as const },
+        font: { weight: "bold" },
         formatter: (value: number) => value,
         offset: 6,
       },
       tooltip: {
         callbacks: {
-          label: (context: { dataset: { label: string }; raw: number }) => {
-            const label = context.dataset.label;
-            const value = context.raw as number;
+          label: function(tooltipItem) {
+            // Defensive label extraction
+            const label = tooltipItem.dataset.label ?? "";
+            const value = tooltipItem.raw as number;
             const totalFive =
               totalReplies +
               countViewedReplies +
@@ -428,21 +420,21 @@ export default function DashboardPage() {
         },
       },
     },
-  } as const;
+  };
 
   return (
     <div className="dashboard-layout">
       <div className="dashboard-main">
-        {/* ——— Top Bar ——— */}
+        {/* Top Bar */}
         <header className="dashboard-header">
           <div>
             <p className="dashboard-subtitle">
-              Agenda: <strong>{title}</strong> (Prompt: “{prompt}”)
+              <strong>{title}</strong>
             </p>
           </div>
         </header>
 
-        {/* ——— Tab Buttons ——— */}
+        {/* Tab Buttons */}
         <div className="dashboard-tabs">
           <button
             className={activeTab === "overview" ? "tab active" : "tab"}
@@ -458,16 +450,20 @@ export default function DashboardPage() {
           </button>
           <button
             className="tab"
-            onClick={() =>navigate(`/agendas/${agendaId}/promote`)}
+            onClick={() =>
+              navigate(`/agendas/${agendaId}/promote`, 
+                { state: { agendaId, agendaTitle: title } }
+              )
+            }
           >
-           Promote More
-         </button>
+            Promote More
+          </button>
         </div>
 
-        {/* ====== Overview Tab ====== */}
+        {/* Overview Tab */}
         {activeTab === "overview" && (
           <>
-            {/* —— KPI Cards —— */}
+            {/* KPI Cards */}
             <section className="kpi-grid">
               <div className="kpi-card">
                 <div className="kpi-icon kpi-red">📅</div>
@@ -501,9 +497,9 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            {/* —— Charts: Histograma & Replies Over Time —— */}
+            {/* Charts: Histograma & Replies Over Time */}
             <section className="chart-grid">
-              {/* ── Histograma (five horizontal bars) ─────────────────────────────────── */}
+              {/* Histograma (five horizontal bars) */}
               <div className="chart-card">
                 <h3>Reply Engagement Breakdown</h3>
                 <div style={{ height: "240px" }}>
@@ -515,7 +511,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ── Replies Over Time (vertical bar) ──────────────────────────────────── */}
+              {/* Replies Over Time (vertical bar) */}
               <div className="chart-card">
                 <h3>Replies Over Time</h3>
                 <div
@@ -531,7 +527,7 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            {/* —— Engagement Timeline (line) —— */}
+            {/* Engagement Timeline (line) */}
             <section className="top-section">
               <div className="top-card engagement-timeline-card">
                 <h3>Engagement Timeline</h3>
@@ -550,10 +546,10 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* ====== Replies History Tab ====== */}
+        {/* Replies History Tab */}
         {activeTab === "replies" && (
           <>
-            {/* —— Three Filter Buttons —— */}
+            {/* Three Filter Buttons */}
             <div style={{ margin: "1rem 0" }}>
               <button
                 className={filter === "all" ? "tab active" : "tab"}
@@ -577,7 +573,7 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* —— Replies History Table —— */}
+            {/* Replies History Table */}
             <section className="top-section">
               <div className="top-card replies-history-card">
                 <h3>Replies History</h3>
