@@ -34,6 +34,7 @@ export default function PromoteResultsPage() {
     }[]
   );
   const [message, setMessage] = useState<string | null>(null);
+  const [expandedTweetId, setExpandedTweetId] = useState<string | null>(null);
 
   // Computed pagination
   const totalItems = editedTweets.length;
@@ -121,6 +122,19 @@ export default function PromoteResultsPage() {
     });
   }
 
+  // Render a single tweet into a container (for modal)
+  function renderOneTweetEmbed(id: string, container: HTMLElement) {
+    const tw = (window as any).twttr;
+    if (!tw?.widgets?.createTweet) return;
+    container.innerHTML = "";
+    tw.widgets
+      .createTweet(id, container, { align: 'center', conversation: 'all', dnt: true, theme: 'light' })
+      .catch(() => {
+        container.innerHTML = `<blockquote class="twitter-tweet"><a href="https://twitter.com/i/web/status/${id}"></a></blockquote>`;
+        try { tw.widgets.load(container); } catch {}
+      });
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -133,6 +147,21 @@ export default function PromoteResultsPage() {
     })();
     return () => { cancelled = true; };
   }, [clampedCurrentPage, pageSize, editedTweets.length]);
+
+  // Modal embed effect
+  useEffect(() => {
+    if (!expandedTweetId) return;
+    let cancelled = false;
+    (async () => {
+      await ensureTwitterScript();
+      if (cancelled) return;
+      const el = document.querySelector('.tweet-embed-modal') as HTMLElement | null;
+      if (el && expandedTweetId) {
+        renderOneTweetEmbed(expandedTweetId, el);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [expandedTweetId]);
 
   const handleEdit = (i: number) =>
     setEditedTweets((prev) => {
@@ -287,11 +316,27 @@ export default function PromoteResultsPage() {
           <article key={`${t.id}-${idx}`} className="reply-card">
             <header className="reply-card-header">
               <span className="reply-index">#{startIndex + idx + 1}</span>
-              {!t.editing ? (
-                <button className="btn-outline" onClick={() => handleEdit(idx)}>Edit</button>
-              ) : (
-                <button className="btn-outline" onClick={() => handleSave(idx)}>Save</button>
-              )}
+              <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                {!t.editing ? (
+                  <button className="btn-outline" onClick={() => handleEdit(idx)}>Edit</button>
+                ) : (
+                  <button className="btn-outline" onClick={() => handleSave(idx)}>Save</button>
+                )}
+                <button
+                  className="reply-expand-btn"
+                  onClick={() => setExpandedTweetId(t.id)}
+                  type="button"
+                  aria-label="Expand tweet"
+                  title="Expand"
+                >
+                  <svg className="icon-expand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="14" y1="10" x2="21" y2="3"></line>
+                    <polyline points="9 21 3 21 3 15"></polyline>
+                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                  </svg>
+                </button>
+              </div>
             </header>
             <div className="reply-embed">
               <div className="tweet-embed" data-tweet-id={t.id}></div>
@@ -313,6 +358,18 @@ export default function PromoteResultsPage() {
           </article>
         ))}
       </div>
+
+      {/* Tweet Modal */}
+      {expandedTweetId && (
+        <div className="modal-backdrop" onClick={() => setExpandedTweetId(null)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" type="button" onClick={() => setExpandedTweetId(null)}>×</button>
+            <div className="modal-body">
+              <div className="tweet-embed-modal"></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="post-replies-wrapper">
         {message && <p className="status">{message}</p>}
