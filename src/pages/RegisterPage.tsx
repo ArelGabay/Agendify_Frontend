@@ -7,7 +7,7 @@ import axios from "axios";
 import defaultAvatar from "../assets/default-avatar.png";
 import maleAvatar from "../assets/male-avatar.png";
 import femaleAvatar from "../assets/female-avatar.png";
-import { CredentialResponse } from "@react-oauth/google";
+// Google login is only used on LoginPage
 import "../styles/auth.css";
 
 const registerSchema = z.object({
@@ -152,29 +152,7 @@ const RegisterPage = () => {
     }
   };
 
-  const googleSignin = async (credentialResponse: CredentialResponse) => {
-    const { credential } = credentialResponse;
-    if (!credential) throw new Error("Missing Google credential");
-
-    const response = await apiClient.post("/auth/google", { credential });
-    return response.data;
-  };
-
-  const onGoogleLoginSuccess = async (
-    credentialResponse: CredentialResponse
-  ) => {
-    try {
-      const res = await googleSignin(credentialResponse);
-      localStorage.setItem("user", JSON.stringify(res));
-      setUser(res);
-      setSuccessMessage("✅ Google login successful! Redirecting to your dashboard...");
-      setTimeout(() => navigate("/dashboard"), 2000);
-    } catch (error) {
-      console.error("Google login failed", error);
-    }
-  };
-
-  const onGoogleLoginError = () => console.error("Google login failed");
+  // No Google sign-in on Register page
 
   return (
     <div className="auth-page">

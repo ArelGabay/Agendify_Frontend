@@ -67,9 +67,6 @@ export default function DashboardPage() {
 
   // Safe derivations used by pagination/effects regardless of loading state
   const tweetsAll: TweetItem[] = agenda?.tweets ?? [];
-  const tweetsAllNewFirst = tweetsAll
-    .slice()
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const repliedTweetsAll = tweetsAll.filter((t) => !!t.replyTweetId);
   const repliedTweetsAllByDate = repliedTweetsAll
     .slice()
