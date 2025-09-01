@@ -11,7 +11,11 @@ body {
   color: #ffffff;
   min-height: 100vh;
   line-height: 1.6;
+  /* no body padding when navbar uses sticky */
 }
+
+/* Offset all routes for fixed navbar */
+.app-content { padding-top: 0; }
 
 /* === Container === */
 .container {

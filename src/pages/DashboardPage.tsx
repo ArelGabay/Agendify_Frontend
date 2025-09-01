@@ -60,7 +60,49 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "replies">("overview");
   const [filter, setFilter]       = useState<"all" | "replies" | "views">("all");
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [expandedTweet, setExpandedTweet] = useState<{ replyId: string; originalId?: string } | null>(null);
   const navigate = useNavigate();
+
+  // Safe derivations used by pagination/effects regardless of loading state
+  const tweetsAll: TweetItem[] = agenda?.tweets ?? [];
+  const tweetsAllNewFirst = tweetsAll
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const repliedTweetsAll = tweetsAll.filter((t) => !!t.replyTweetId);
+  const repliedTweetsAllByDate = repliedTweetsAll
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const sortedByRepliesAll = repliedTweetsAll
+    .slice()
+    .sort((a, b) => (b.engagement?.reply_count || 0) - (a.engagement?.reply_count || 0))
+    .slice(0, 5);
+  const sortedByViewsAll = repliedTweetsAll
+    .slice()
+    .sort((a, b) => (b.engagement?.views_count || 0) - (a.engagement?.views_count || 0))
+    .slice(0, 5);
+
+  let displayedTweets: TweetItem[];
+  if (filter === "replies") {
+    displayedTweets = sortedByRepliesAll;
+  } else if (filter === "views") {
+    displayedTweets = sortedByViewsAll;
+  } else {
+    // Show All: only items with a reply, newest first
+    displayedTweets = repliedTweetsAllByDate;
+  }
+
+  // Pagination calculations (safe during loading)
+  const isPaged = filter === "all";
+  const totalItems = displayedTweets.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const clampedCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (clampedCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const pagedTweets = isPaged
+    ? displayedTweets.slice(startIndex, endIndex)
+    : displayedTweets;
 
   // Fetch agenda data
   useEffect(() => {
@@ -84,6 +126,186 @@ export default function DashboardPage() {
       const container = document.querySelector(".replies-carousel");
       tw.widgets.load(container as HTMLElement | null);
     }
+  }
+
+  // Programmatic embed rendering ensures tweets show without requiring @username in URL
+  function renderTweetEmbeds() {
+    const tw = (window as any).twttr;
+    if (!tw?.widgets?.createTweet) return;
+
+    const create = (tweetId: string, container: HTMLElement, opts: any) =>
+      new Promise<boolean>((resolve) => {
+        let settled = false;
+        const done = (ok: boolean) => {
+          if (settled) return;
+          settled = true;
+          resolve(ok);
+        };
+        try {
+          const p = tw.widgets.createTweet(tweetId, container, opts);
+          if (p && typeof p.then === 'function') {
+            p.then(() => done(true)).catch(() => done(false));
+          } else {
+            // Fallback: assume success, but still set a short timeout
+            setTimeout(() => done(true), 0);
+          }
+        } catch {
+          done(false);
+        }
+        // Guard against hanging promises
+        setTimeout(() => done(false), 2000);
+      });
+
+    const nodes = document.querySelectorAll('.tweet-embed[data-tweet-id]');
+    nodes.forEach(async (node) => {
+      const el = node as HTMLElement;
+      const id = el.dataset.tweetId!;
+      const originalId = undefined;
+      if (!id) return;
+      if (el.getAttribute('data-rendered') === '1' || el.getAttribute('data-rendering') === '1') return;
+      el.setAttribute('data-rendering', '1');
+
+      const baseOptions = { align: 'center', dnt: true, theme: 'light' } as const;
+      const origOptions = { ...baseOptions, conversation: 'none' } as const;
+      const replyWithParent = { ...baseOptions, conversation: 'none' } as const;
+      const replySinglePref = { ...baseOptions, conversation: 'all' } as const;
+      const replySingleAlt = { ...baseOptions } as const; // let platform decide
+
+      el.innerHTML = '';
+      const container = document.createElement('div');
+      el.appendChild(container);
+
+      let replyOk = false;
+
+      if (originalId) {
+        // Create a two-row layout: parent on top, reply beneath
+        el.innerHTML = '';
+        const origEl = document.createElement('div');
+        const replyEl = document.createElement('div');
+        el.appendChild(origEl);
+        el.appendChild(replyEl);
+        // Render parent in background; don't block reply
+        create(originalId, origEl, origOptions);
+        // Render reply; try conversation none first, then all
+        replyOk = await create(id, replyEl, replyWithParent);
+        if (!replyOk) replyOk = await create(id, replyEl, replySinglePref);
+        if (!replyOk) {
+          // Fallback to blockquote
+          replyEl.innerHTML = `<blockquote class="twitter-tweet"><a href="https://twitter.com/i/web/status/${id}"></a></blockquote>`;
+          try { tw.widgets.load(replyEl); replyOk = true; } catch { replyOk = false; }
+        }
+      } else {
+        // Single reply (no parent)
+        replyOk = await create(id, container, replySinglePref);
+        if (!replyOk) replyOk = await create(id, container, replySingleAlt);
+        if (!replyOk) {
+          container.innerHTML = `<blockquote class="twitter-tweet"><a href="https://twitter.com/i/web/status/${id}"></a></blockquote>`;
+          try { tw.widgets.load(container); replyOk = true; } catch { replyOk = false; }
+        }
+      }
+
+      el.removeAttribute('data-rendering');
+      if (replyOk) {
+        el.setAttribute('data-rendered', '1');
+        el.removeAttribute('data-error');
+      } else {
+        el.removeAttribute('data-rendered');
+        el.setAttribute('data-error', '1');
+      }
+      // Defer alignment check to next frame
+      requestAnimationFrame(() => adjustEmbedAlignment());
+    });
+  }
+
+  // Center short tweets vertically; top-align overflowing ones
+  function adjustEmbedAlignment() {
+    const containers = document.querySelectorAll<HTMLElement>('.reply-embed');
+    containers.forEach((c) => {
+      // Measure the inner tweet block if present
+      const inner = c.querySelector<HTMLElement>('.tweet-embed, .twitter-tweet, .twitter-tweet-rendered');
+      const contentHeight = inner?.offsetHeight ?? c.scrollHeight;
+      const containerHeight = c.clientHeight;
+      if (contentHeight > containerHeight - 8) {
+        c.classList.add('overflowing');
+      } else {
+        c.classList.remove('overflowing');
+      }
+    });
+  }
+
+  function renderOneTweetEmbed(id: string, container: HTMLElement, originalId?: string) {
+    const tw = (window as any).twttr;
+    if (!tw?.widgets?.createTweet) return;
+    container.innerHTML = "";
+    const baseOptions = { align: 'center', dnt: true, theme: 'light' } as const;
+    const origOptions = { ...baseOptions, conversation: 'none' } as const;
+    const replyOptionsWithParent = { ...baseOptions, conversation: 'none' } as const;
+    const replyOptionsSingle = { ...baseOptions, conversation: 'all' } as const;
+    if (false) {
+      const orig = document.createElement('div');
+      const rep = document.createElement('div');
+      container.appendChild(orig);
+      container.appendChild(rep);
+      tw.widgets
+        .createTweet(originalId, orig, origOptions)
+        .catch(() => null)
+        .finally(() => {
+          tw.widgets.createTweet(id, rep, replyOptionsWithParent).catch(() => null);
+        });
+    } else {
+      tw.widgets.createTweet(id, container, replyOptionsSingle).catch(() => null);
+    }
+  }
+
+  // Ensure the Twitter widgets.js script is present and ready
+  function ensureTwitterScript(): Promise<void> {
+    return new Promise((resolve) => {
+      const existing = document.getElementById("twitter-wjs") as HTMLScriptElement | null;
+      const ready = () => {
+        const tw = (window as any).twttr;
+        if (tw?.widgets?.createTweet) {
+          // Give it a tick to fully initialize
+          setTimeout(() => resolve(), 0);
+          return true;
+        }
+        return false;
+      };
+      if (ready()) return; // already loaded
+      if (!existing) {
+        const script = document.createElement("script");
+        script.id = "twitter-wjs";
+        script.src = "https://platform.twitter.com/widgets.js";
+        script.async = true;
+        script.charset = "utf-8";
+        script.onload = () => {
+          // Some builds expose twttr.ready
+          const tw = (window as any).twttr;
+          if (tw?.ready) {
+            tw.ready(() => ready() || resolve());
+          } else {
+            // Fallback poll until createTweet exists
+            const int = setInterval(() => {
+              if (ready()) {
+                clearInterval(int);
+              }
+            }, 50);
+            setTimeout(() => {
+              clearInterval(int);
+              resolve();
+            }, 1500);
+          }
+        };
+        document.body.appendChild(script);
+      }
+      // If script tag exists but not ready yet, poll briefly
+      const int = setInterval(() => {
+        if (ready()) clearInterval(int);
+      }, 50);
+      setTimeout(() => {
+        clearInterval(int);
+        resolve();
+      }, 1500);
+    });
   }
 
   useEffect(() => {
@@ -133,11 +355,94 @@ export default function DashboardPage() {
     }
   }, [currentSlide, activeTab]);
 
+  // Ensure page stays in bounds when filters or sizes change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, activeTab]);
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil(displayedTweets.length / pageSize));
+    setCurrentPage((cp) => Math.min(cp, tp));
+  }, [displayedTweets.length, pageSize]);
+
+  // Re-run Twitter widgets when the replies content changes; ensure script first
+  useEffect(() => {
+    if (activeTab !== "replies") return;
+    let cancelled = false;
+    (async () => {
+      await ensureTwitterScript();
+      if (cancelled) return;
+      tryLoadWidgets();
+      renderTweetEmbeds();
+      // Allow some time for iframes to size, then adjust alignment
+      setTimeout(() => adjustEmbedAlignment(), 300);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, clampedCurrentPage, pageSize, filter, displayedTweets.length]);
+
+  // Render embed in modal when expanded
+  useEffect(() => {
+    if (!expandedTweet) return;
+    let cancelled = false;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setExpandedTweet(null);
+      } else if (e.key === 'Tab') {
+        // Basic focus trap inside modal
+        const dialog = document.querySelector('.modal-dialog') as HTMLElement | null;
+        if (!dialog) return;
+        const focusables = dialog.querySelectorAll<HTMLElement>(
+          'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey) {
+          if (active === first || !dialog.contains(active)) {
+            last.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (active === last || !dialog.contains(active)) {
+            first.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+    (async () => {
+      await ensureTwitterScript();
+      if (cancelled) return;
+      const el = document.querySelector('.tweet-embed-modal') as HTMLElement | null;
+      if (el) {
+        renderOneTweetEmbed(expandedTweet.replyId, el, expandedTweet.originalId);
+      }
+      // prevent background scroll and init focus
+      document.body.classList.add('modal-open');
+      // focus the close button
+      setTimeout(() => {
+        const closeBtn = document.querySelector('.modal-close') as HTMLButtonElement | null;
+        closeBtn?.focus();
+      }, 0);
+      window.addEventListener('keydown', onKeyDown);
+    })();
+    return () => {
+      cancelled = true;
+      document.body.classList.remove('modal-open');
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [expandedTweet]);
+
   if (loading) return <p>Loading dashboard…</p>;
   if (error)   return <p style={{ color: "red" }}>Error: {error}</p>;
   if (!agenda) return <p>Agenda not found.</p>;
 
-  const { title, createdAt, tweets } = agenda;
+  const title = agenda.title;
+  const createdAt = agenda.createdAt;
+  const tweets = tweetsAll;
 
   // Compute KPI Metrics
   const totalReplies = tweets.filter((t) => !!t.replyTweetId).length;
@@ -303,29 +608,7 @@ export default function DashboardPage() {
     },
   };
 
-  // Top 5 Replies by Replies & Views
-  const allReplies = tweets.filter((t) => !!t.replyTweetId);
-  const sortedByReplies = allReplies
-    .slice()
-    .sort((a, b) =>
-      (b.engagement?.reply_count || 0) - (a.engagement?.reply_count || 0)
-    )
-    .slice(0, 5);
-  const sortedByViews = allReplies
-    .slice()
-    .sort((a, b) =>
-      (b.engagement?.views_count || 0) - (a.engagement?.views_count || 0)
-    )
-    .slice(0, 5);
-
-  let displayedTweets: TweetItem[];
-  if (filter === "replies") {
-    displayedTweets = sortedByReplies;
-  } else if (filter === "views") {
-    displayedTweets = sortedByViews;
-  } else {
-    displayedTweets = tweets;
-  }
+  // Top 5 Replies by Replies & Views are already computed above
 
   // Build counts
   const countViewedReplies = repliedTweets.filter(
@@ -427,10 +710,26 @@ export default function DashboardPage() {
       <div className="dashboard-main">
         {/* Top Bar */}
         <header className="dashboard-header">
-          <div>
-            <p className="dashboard-subtitle">
-              <strong>{title}</strong>
-            </p>
+          <div className="agenda-title">
+            <h1 className="agenda-heading">{title}</h1>
+            <div className="agenda-meta">
+              <span className="chip">Started {new Date(createdAt).toLocaleDateString()}</span>
+              <span className="chip">{totalReplies} replies</span>
+              <span className="chip">{engagementRatePercent}% engagement</span>
+            </div>
+          </div>
+          <div className="header-actions">
+            <button
+              className="btn-promote"
+              onClick={() =>
+                navigate(`/agendas/${agendaId}/promote`, {
+                  state: { agendaId, agendaTitle: title },
+                })
+              }
+              type="button"
+            >
+              Promote More
+            </button>
           </div>
         </header>
 
@@ -447,16 +746,6 @@ export default function DashboardPage() {
             onClick={() => setActiveTab("replies")}
           >
             Replies History
-          </button>
-          <button
-            className="tab"
-            onClick={() =>
-              navigate(`/agendas/${agendaId}/promote`, 
-                { state: { agendaId, agendaTitle: title } }
-              )
-            }
-          >
-            Promote More
           </button>
         </div>
 
@@ -550,7 +839,7 @@ export default function DashboardPage() {
         {activeTab === "replies" && (
           <>
             {/* Three Filter Buttons */}
-            <div style={{ margin: "1rem 0" }}>
+            <div className="sub-tabs">
               <button
                 className={filter === "all" ? "tab active" : "tab"}
                 onClick={() => setFilter("all")}
@@ -560,61 +849,204 @@ export default function DashboardPage() {
               <button
                 className={filter === "replies" ? "tab active" : "tab"}
                 onClick={() => setFilter("replies")}
-                style={{ marginLeft: "0.5rem" }}
               >
                 Top 5 by Replies
               </button>
               <button
                 className={filter === "views" ? "tab active" : "tab"}
                 onClick={() => setFilter("views")}
-                style={{ marginLeft: "0.5rem" }}
               >
                 Top 5 by Views
               </button>
             </div>
 
-            {/* Replies History Table */}
+            {/* Replies Cards Container */}
             <section className="top-section">
               <div className="top-card replies-history-card">
-                <h3>Replies History</h3>
-                <table className="top-replies-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Your Reply</th>
-                      <th>Posted At</th>
-                      <th>Likes</th>
-                      <th>Replies</th>
-                      <th>Views</th>
-                      <th>Retweets</th>
-                      <th>View on X</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayedTweets.map((t, i) => (
-                      <tr key={t.replyTweetId}>
-                        <td>{i + 1}</td>
-                        <td>{t.responseComment}</td>
-                        <td>{new Date(t.createdAt).toLocaleString()}</td>
-                        <td>{t.engagement?.like_count ?? 0}</td>
-                        <td>{t.engagement?.reply_count ?? 0}</td>
-                        <td>{t.engagement?.views_count ?? 0}</td>
-                        <td>{t.engagement?.retweet_count ?? 0}</td>
-                        <td>
-                          <a
-                            href={`https://twitter.com/i/web/status/${t.replyTweetId}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            View on X
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {/* Controls (only for Show All) */}
+                {isPaged && (
+                <div className="table-toolbar">
+                  <div className="table-meta">
+                    {totalItems > 0
+                      ? `Showing ${startIndex + 1}–${endIndex} of ${totalItems}`
+                      : "No entries"}
+                  </div>
+                  <div className="table-actions">
+                    <label className="rows-select">
+                      Rows per page
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          const size = parseInt(e.target.value, 10);
+                          setPageSize(size);
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                      </select>
+                    </label>
+                    <div className="pagination">
+                      <button
+                        className="page-btn"
+                        disabled={clampedCurrentPage === 1}
+                        onClick={() => setCurrentPage(1)}
+                        aria-label="First page"
+                      >
+                        «
+                      </button>
+                      <button
+                        className="page-btn"
+                        disabled={clampedCurrentPage === 1}
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        aria-label="Previous page"
+                      >
+                        ‹
+                      </button>
+                      {/* Page numbers (windowed) */}
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter((p) => {
+                          const pageWindow = 2; // show current ±2
+                          if (totalPages <= 7) return true;
+                          if (p === 1 || p === totalPages) return true;
+                          return (
+                            p >= clampedCurrentPage - pageWindow &&
+                            p <= clampedCurrentPage + pageWindow
+                          );
+                        })
+                        .map((p, idx, arr) => {
+                          const isEllipsisBefore =
+                            idx > 0 && p > arr[idx - 1] + 1;
+                          return (
+                            <span key={p} className="page-number-wrap">
+                              {isEllipsisBefore && <span className="ellipsis">…</span>}
+                              <button
+                                className={
+                                  p === clampedCurrentPage ? "page-btn active" : "page-btn"
+                                }
+                                onClick={() => setCurrentPage(p)}
+                              >
+                                {p}
+                              </button>
+                            </span>
+                          );
+                        })}
+                      <button
+                        className="page-btn"
+                        disabled={clampedCurrentPage === totalPages}
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        aria-label="Next page"
+                      >
+                        ›
+                      </button>
+                      <button
+                        className="page-btn"
+                        disabled={clampedCurrentPage === totalPages}
+                        onClick={() => setCurrentPage(totalPages)}
+                        aria-label="Last page"
+                      >
+                        »
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                )}
+                <div className="replies-grid replies-carousel">
+                  {pagedTweets.map((t, i) => (
+                    <article key={t.replyTweetId} className="reply-card">
+                      <header className="reply-card-header">
+                        <span className="reply-index">#{(isPaged ? startIndex : 0) + i + 1}</span>
+                        <time className="reply-date" dateTime={t.createdAt}>
+                          {new Date(t.createdAt).toLocaleString()}
+                        </time>
+                        <button
+                          className="reply-expand-btn"
+                          onClick={() => setExpandedTweet({ replyId: t.replyTweetId, originalId: t.originalTweetId })}
+                          type="button"
+                          aria-label="Expand tweet"
+                          title="Expand"
+                        >
+                          <svg className="icon-expand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="14" y1="10" x2="21" y2="3"></line>
+                            <polyline points="9 21 3 21 3 15"></polyline>
+                            <line x1="3" y1="21" x2="10" y2="14"></line>
+                          </svg>
+                        </button>
+                      </header>
+                      <div className="reply-embed">
+                        <div className="tweet-embed" data-tweet-id={t.replyTweetId} data-original-id={t.originalTweetId || undefined}></div>
+                      </div>
+                      <footer className="reply-metrics">
+                        <span title="Likes">❤️ {t.engagement?.like_count ?? 0}</span>
+                        <span title="Replies">💬 {t.engagement?.reply_count ?? 0}</span>
+                        <span title="Views">👀 {t.engagement?.views_count ?? 0}</span>
+                        <span title="Retweets">🔁 {t.engagement?.retweet_count ?? 0}</span>
+                      </footer>
+                    </article>
+                  ))}
+                </div>
+                {/* Bottom Pagination (duplicate) only for paged view */}
+                {isPaged && (
+                  <div className="table-footer">
+                    <div className="table-meta">
+                      {totalItems > 0
+                        ? `Showing ${startIndex + 1}–${endIndex} of ${totalItems}`
+                        : "No entries"}
+                    </div>
+                    <div className="pagination">
+                      <button
+                        className="page-btn"
+                        disabled={clampedCurrentPage === 1}
+                        onClick={() => setCurrentPage(1)}
+                        aria-label="First page"
+                      >
+                        «
+                      </button>
+                      <button
+                        className="page-btn"
+                        disabled={clampedCurrentPage === 1}
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        aria-label="Previous page"
+                      >
+                        ‹
+                      </button>
+                      <span className="page-status">Page {clampedCurrentPage} of {totalPages}</span>
+                      <button
+                        className="page-btn"
+                        disabled={clampedCurrentPage === totalPages}
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        aria-label="Next page"
+                      >
+                        ›
+                      </button>
+                      <button
+                        className="page-btn"
+                        disabled={clampedCurrentPage === totalPages}
+                        onClick={() => setCurrentPage(totalPages)}
+                        aria-label="Last page"
+                      >
+                        »
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
+            {/* Tweet Modal */}
+            {expandedTweet && (
+              <div className="modal-backdrop" onClick={() => setExpandedTweet(null)}>
+                <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+                  <button className="modal-close" type="button" onClick={() => setExpandedTweet(null)}>
+                    ×
+                  </button>
+                  <div className="modal-body">
+                    <div className="tweet-embed-modal"></div>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

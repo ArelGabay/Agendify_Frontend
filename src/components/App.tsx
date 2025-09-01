@@ -9,7 +9,9 @@ const App = () => {
   return (
     <AuthProvider>
       <Navbar />
-      <AppRoutes />
+      <div className="app-content">
+        <AppRoutes />
+      </div>
     </AuthProvider>
   );
 };

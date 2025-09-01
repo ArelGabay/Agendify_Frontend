@@ -83,16 +83,20 @@ export default function PromoteForm() {
 
   return (
     <form onSubmit={handleSubmit} className="promote-form">
-      <h2>
+      <h2 className="promote-title">
         {isAppend
           ? `Add Replies to “${agendaTitle || agendaId}”`
-          : "New Promotion"}
+          : "Start a New Promotion"}
       </h2>
+      <p className="promote-subtitle">
+        Craft targeted replies that align with your stance.
+      </p>
       {message && <div className="message">{message}</div>}
 
       <fieldset className="section">
-        <legend>1. Your Prompt</legend>
+        <legend>Your Prompt</legend>
         <textarea
+          className="prompt-input"
           rows={3}
           placeholder="Type what you want to promote…"
           value={prompt}
@@ -101,31 +105,36 @@ export default function PromoteForm() {
       </fieldset>
 
       <fieldset className="section">
-        <legend>2. Stance</legend>
-        <label>
-          <input
-            type="radio"
-            name="stance"
-            value="in_favor"
-            checked={stance === "in_favor"}
-            onChange={() => setStance("in_favor")}
-          /> Support
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="stance"
-            value="opposed"
-            checked={stance === "opposed"}
-            onChange={() => setStance("opposed")}
-          /> Oppose
-        </label>
+        <legend>Stance</legend>
+        <div className="segmented">
+          <label className="segment">
+            <input
+              type="radio"
+              name="stance"
+              value="in_favor"
+              checked={stance === "in_favor"}
+              onChange={() => setStance("in_favor")}
+            />
+            <span className="segment-label">Support</span>
+          </label>
+          <label className="segment">
+            <input
+              type="radio"
+              name="stance"
+              value="opposed"
+              checked={stance === "opposed"}
+              onChange={() => setStance("opposed")}
+            />
+            <span className="segment-label">Oppose</span>
+          </label>
+        </div>
       </fieldset>
 
       <div className="section">
-        <label htmlFor="count">
-          3. Tweets: <strong>{tweetCount}</strong>
-        </label>
+        <div className="count-header">
+          <span className="count-label">Tweets</span>
+          <span className="count-badge">{tweetCount}</span>
+        </div>
         <input
           id="count"
           type="range"
@@ -138,7 +147,7 @@ export default function PromoteForm() {
       </div>
 
       <div className="submit-section">
-        <button disabled={loading}>
+        <button className="btn-primary" disabled={loading}>
           {loading ? "Working…" : isAppend ? "Generate Replies" : "Promote"}
         </button>
       </div>

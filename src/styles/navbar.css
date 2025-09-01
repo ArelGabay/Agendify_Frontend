@@ -7,24 +7,25 @@
   --color-accent: #6c5ce7;
   --color-accent-light: #9c68ff;
   --card-shadow: rgba(0, 0, 0, 0.1) 0px 4px 12px;
+  --nav-h: 64px; /* global navbar height */
 }
 
 /* 1. Make nav full-width, remove centering behavior */
 .navbar {
-  position: sticky;
+  position: sticky; /* stays at top during scroll without global offsets */
   top: 0;
   width: 100%;
   background: var(--color-bg);
   box-shadow: var(--card-shadow);
   font-family: var(--font-sans);
-  z-index: 1000;
-  display: block; /* no justify-content:center */
+  z-index: 1100;
+  display: block;
 }
 
 /* 2. Container spans 100% of viewport */
 .navbar-container {
   width: 100%;
-  padding: 0.75rem 2rem;
+  padding: 0.75rem 2rem; /* vertical padding defines bar height */
   display: flex;
   justify-content: space-between; /* logo left, links right */
   align-items: center;

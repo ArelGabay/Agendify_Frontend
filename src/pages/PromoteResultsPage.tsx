@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import "../styles/PromoteResults.css";
+import "../styles/stats.css"; // reuse pagination/toolbar styles
 
 declare global {
   interface Window {
@@ -22,16 +23,25 @@ export default function PromoteResultsPage() {
   const agendaId = state?.agendaId ?? "";
 
   const navigate = useNavigate();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [editedTweets, setEditedTweets] = useState(
     [] as {
       id: string;
       text: string;
       editedComment: string;
-      liked: boolean;
       editing: boolean;
     }[]
   );
   const [message, setMessage] = useState<string | null>(null);
+
+  // Computed pagination
+  const totalItems = editedTweets.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const clampedCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (clampedCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const pagedTweets = editedTweets.slice(startIndex, endIndex);
 
   function unwrap(
     r:
@@ -48,15 +58,32 @@ export default function PromoteResultsPage() {
     return unwrap(firstString);
   }
 
-  useEffect(() => {
-    if (!window.twttr) {
-      const s = document.createElement("script");
-      s.src = "https://platform.twitter.com/widgets.js";
-      s.async = true;
-      s.charset = "utf-8";
-      document.body.appendChild(s);
-    }
-  }, []);
+  // Ensure Twitter widgets script exists
+  function ensureTwitterScript(): Promise<void> {
+    return new Promise((resolve) => {
+      const existing = document.getElementById("twitter-wjs") as HTMLScriptElement | null;
+      const ready = () => {
+        const tw = (window as any).twttr;
+        if (tw?.widgets?.createTweet) {
+          setTimeout(() => resolve(), 0);
+          return true;
+        }
+        return false;
+      };
+      if (ready()) return;
+      if (!existing) {
+        const s = document.createElement("script");
+        s.id = "twitter-wjs";
+        s.src = "https://platform.twitter.com/widgets.js";
+        s.async = true;
+        s.charset = "utf-8";
+        s.onload = () => ready() || resolve();
+        document.body.appendChild(s);
+      }
+      const int = setInterval(() => { if (ready()) clearInterval(int); }, 50);
+      setTimeout(() => { clearInterval(int); resolve(); }, 1500);
+    });
+  }
 
   useEffect(() => {
     setEditedTweets(
@@ -64,27 +91,48 @@ export default function PromoteResultsPage() {
         id: t.id,
         text: t.text,
         editedComment: unwrap(t.responseComment),
-        liked: false,
         editing: false,
       }))
     );
+    setCurrentPage(1);
   }, [tweets]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (window.twttr?.widgets?.load) {
-        window.twttr.widgets.load();
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [editedTweets]);
-
-  const toggleLike = (i: number) =>
-    setEditedTweets((prev) => {
-      const c = [...prev];
-      c[i].liked = !c[i].liked;
-      return c;
+  // Programmatic embed rendering for reliability
+  function renderTweetEmbeds() {
+    const tw = (window as any).twttr;
+    if (!tw?.widgets?.createTweet) return;
+    const nodes = document.querySelectorAll('.tweet-embed[data-tweet-id]');
+    nodes.forEach((node) => {
+      const el = node as HTMLElement;
+      const id = el.dataset.tweetId;
+      if (!id) return;
+      if (el.getAttribute('data-rendering') === '1' || el.getAttribute('data-rendered') === '1') return;
+      el.setAttribute('data-rendering', '1');
+      el.innerHTML = '';
+      tw.widgets.createTweet(id, el, { align: 'center', conversation: 'all', dnt: true, theme: 'light' })
+        .then(() => { el.setAttribute('data-rendered', '1'); el.removeAttribute('data-rendering'); })
+        .catch(() => {
+          el.removeAttribute('data-rendering');
+          el.removeAttribute('data-rendered');
+          // Fallback to blockquote
+          el.innerHTML = `<blockquote class="twitter-tweet"><a href="https://twitter.com/i/web/status/${id}">Tweet</a></blockquote>`;
+          try { tw.widgets.load(el); } catch {}
+        });
     });
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await ensureTwitterScript();
+      if (cancelled) return;
+      // Try multiple passes in case iframes resize late
+      renderTweetEmbeds();
+      setTimeout(() => { if (!cancelled) renderTweetEmbeds(); }, 300);
+      setTimeout(() => { if (!cancelled) renderTweetEmbeds(); }, 1000);
+    })();
+    return () => { cancelled = true; };
+  }, [clampedCurrentPage, pageSize, editedTweets.length]);
 
   const handleEdit = (i: number) =>
     setEditedTweets((prev) => {
@@ -107,7 +155,10 @@ export default function PromoteResultsPage() {
       return c;
     });
 
-  const goBack = () => navigate(`/agendas/${agendaId}/promote`);
+  const goBack = () =>
+    navigate(`/agendas/${agendaId}/promote`, {
+      state: { agendaId, agendaTitle },
+    });
 
   const handlePostAllReplies = async () => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -139,7 +190,7 @@ export default function PromoteResultsPage() {
         throw new Error(err.error || resp.statusText);
       }
       setMessage("✅ All replies posted! Redirecting…");
-      setTimeout(() => navigate(`/agendas/${agendaId}`), 800);
+      setTimeout(() => navigate(`/agendas/${agendaId}/dashboard`), 800);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setMessage(`❌ ${err.message}`);
@@ -152,83 +203,118 @@ export default function PromoteResultsPage() {
   if (!editedTweets.length) {
     return (
       <div className="results-container">
-        <h2>No tweets found 😢</h2>
-        <button onClick={goBack}>🔄 Start New Promotion</button>
+        <h2 className="results-title">No tweets found</h2>
+        <button className="btn-ghost" onClick={goBack}>Start New Promotion</button>
       </div>
     );
   }
 
   return (
     <div className="results-container">
-      <h1>🎯 “{agendaTitle}”</h1>
-      <p className="prompt">Prompt: {prompt}</p>
-      <button onClick={goBack}>🔄 Start New Promotion</button>
+      <div className="results-hero">
+        <div className="hero-text">
+          <h1 className="hero-title">{agendaTitle}</h1>
+          {prompt && <p className="hero-subtitle">{prompt}</p>}
+        </div>
+        <div className="hero-actions">
+          <button
+            className="btn-ghost icon-only"
+            onClick={goBack}
+            type="button"
+            aria-label="Start New Promotion"
+            title="Start New Promotion"
+          >
+            <svg className="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path>
+              <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path>
+            </svg>
+          </button>
+        </div>
+        <div className="hero-meta">
+          <span className="chip">Suggestions: {totalItems}</span>
+        </div>
+        <div className="hero-post">
+          <button className="btn-primary" onClick={handlePostAllReplies} type="button">Post All Replies</button>
+        </div>
+      </div>
 
-      <table className="results-table">
-        <colgroup>
-          <col style={{ width: "5%" }} />
-          <col style={{ width: "45%" }} />
-          <col style={{ width: "5%" }} />
-          <col style={{ width: "45%" }} />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Tweet</th>
-            <th>Like?</th>
-            <th>Your Reply</th>
-          </tr>
-        </thead>
-        <tbody>
-          {editedTweets.map((t, idx) => (
-            <tr key={`${t.id}-${idx}`}>
-              <td>{idx + 1}</td>
-              <td>
-                <blockquote className="twitter-tweet">
-                  <a href={`https://twitter.com/ffff/status/${t.id}`}>
-                    Loading tweet…
-                  </a>
-                </blockquote>
-              </td>
-              <td>
-                <span className="like-icon" onClick={() => toggleLike(idx)}>
-                  {t.liked ? "❤️" : "🤍"}
-                </span>
-              </td>
-              <td>
-                {!t.editedComment?.trim() ? (
-                  <em style={{ color: "gray" }}>
-                    No comment generated by the AI.
-                  </em>
-                ) : t.editing ? (
-                  <>
-                    <textarea
-                      className="reply-textarea"
-                      value={t.editedComment}
-                      onChange={(e) => handleChange(idx, e.target.value)}
-                    />
-                    <div>
-                      <button onClick={() => handleSave(idx)}>💾 Save</button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>{t.editedComment}</div>
-                    <div style={{ marginTop: "0.5rem" }}>
-                      <button onClick={() => handleEdit(idx)}>✏️ Edit</button>
-                    </div>
-                  </>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Toolbar */}
+      <div className="table-toolbar">
+        <div className="table-meta">
+          {totalItems > 0 ? `Showing ${startIndex + 1}–${endIndex} of ${totalItems}` : 'No entries'}
+        </div>
+        <div className="table-actions">
+          <label className="rows-select">
+            Rows per page
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setCurrentPage(1); }}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+          </label>
+          <div className="pagination">
+            <button className="page-btn" disabled={clampedCurrentPage === 1} onClick={() => setCurrentPage(1)} aria-label="First page">«</button>
+            <button className="page-btn" disabled={clampedCurrentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} aria-label="Previous page">‹</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => {
+                const pageWindow = 2;
+                if (totalPages <= 7) return true;
+                if (p === 1 || p === totalPages) return true;
+                return p >= clampedCurrentPage - pageWindow && p <= clampedCurrentPage + pageWindow;
+              })
+              .map((p, idx, arr) => {
+                const isEllipsisBefore = idx > 0 && p > arr[idx - 1] + 1;
+                return (
+                  <span key={p} className="page-number-wrap">
+                    {isEllipsisBefore && <span className="ellipsis">…</span>}
+                    <button className={p === clampedCurrentPage ? 'page-btn active' : 'page-btn'} onClick={() => setCurrentPage(p)}>{p}</button>
+                  </span>
+                );
+              })}
+            <button className="page-btn" disabled={clampedCurrentPage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} aria-label="Next page">›</button>
+            <button className="page-btn" disabled={clampedCurrentPage === totalPages} onClick={() => setCurrentPage(totalPages)} aria-label="Last page">»</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="replies-grid">
+        {pagedTweets.map((t, idx) => (
+          <article key={`${t.id}-${idx}`} className="reply-card">
+            <header className="reply-card-header">
+              <span className="reply-index">#{startIndex + idx + 1}</span>
+              {!t.editing ? (
+                <button className="btn-outline" onClick={() => handleEdit(idx)}>Edit</button>
+              ) : (
+                <button className="btn-outline" onClick={() => handleSave(idx)}>Save</button>
+              )}
+            </header>
+            <div className="reply-embed">
+              <div className="tweet-embed" data-tweet-id={t.id}></div>
+            </div>
+            <div className="result-reply">
+              {(!t.editedComment?.trim()) && !t.editing ? (
+                <em className="muted">No comment generated by the AI.</em>
+              ) : t.editing ? (
+                <textarea
+                  className="reply-editor"
+                  value={t.editedComment}
+                  onChange={(e) => handleChange(idx, e.target.value)}
+                  rows={5}
+                />
+              ) : (
+                <p className="reply-text">{t.editedComment}</p>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
 
       <div className="post-replies-wrapper">
-        <button className="post-replies-button" onClick={handlePostAllReplies}>
-          📤 Post All Replies
-        </button>
         {message && <p className="status">{message}</p>}
       </div>
     </div>

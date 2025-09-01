@@ -1,17 +1,12 @@
-import React, { useState, useContext } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
-// import apiClient from "../services/api-client";
-// import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
-import "../styles/login.css";
+import { useAuth } from "../context/AuthContext";
+import apiClient from "../services/api-client";
+import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
+import "../styles/auth.css";
 
 const LoginPage = () => {
-  const authContext = useContext(AuthContext);
-  if (!authContext) {
-    throw new Error("AuthContext is null");
-  }
-
-  const { login } = authContext; // setUser
+  const { login, setUser } = useAuth();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
@@ -23,64 +18,71 @@ const LoginPage = () => {
     e.preventDefault();
     setError("");
     setSuccessMessage("");
-  
+
     if (!username || !password) {
       setError("Please enter your username and password.");
       return;
     }
-  
+
     try {
       await login(username, password);
-      setSuccessMessage("✅ Login successful! Redirecting to your dashboard...");
-  
+      setSuccessMessage(
+        "✅ Login successful! Redirecting to your dashboard..."
+      );
+
       // ⏳ Actually wait 2 seconds before navigating
       await new Promise((res) => setTimeout(res, 2000));
-      navigate("/dashboard");
+      navigate("/agendas");
     } catch {
       setError("Invalid username or password. Please try again.");
     }
-  };  
+  };
 
-  // const googleSignin = async (credentialResponse: CredentialResponse) => {
-  //   const { credential } = credentialResponse;
-  //   if (!credential) throw new Error("Google credential is missing");
+  const googleSignin = async (credentialResponse: CredentialResponse) => {
+    const { credential } = credentialResponse;
+    if (!credential) throw new Error("Google credential is missing");
 
-  //   const response = await apiClient.post("/auth/google", { credential });
-  //   return response.data;
-  // };
+    const response = await apiClient.post("/auth/google", { credential });
+    return response.data;
+  };
 
-  // const onGoogleLoginSuccess = async (credentialResponse: CredentialResponse) => {
-  //   try {
-  //     const res = await googleSignin(credentialResponse);
-  //     localStorage.setItem("user", JSON.stringify(res));
-  //     setUser(res);
-  //     setSuccessMessage("✅ Google login successful! Redirecting to your dashboard...");
-  //     setError("");
-  
-  //     // ⏳ Real 2-second delay before redirect
-  //     await new Promise((res) => setTimeout(res, 2000));
-  //     navigate("/dashboard");
-  //   } catch (err) {
-  //     console.error("Google Signin error!", err);
-  //     setError("Google login failed. Please try again.");
-  //   }
-  // };  
+  const onGoogleLoginSuccess = async (
+    credentialResponse: CredentialResponse
+  ) => {
+    try {
+      const res = await googleSignin(credentialResponse);
+      localStorage.setItem("user", JSON.stringify(res));
+      setUser(res);
+      setSuccessMessage(
+        "✅ Google login successful! Redirecting to your dashboard..."
+      );
+      setError("");
 
-  // const onGoogleLoginError = () => {
-  //   setError("Google login failed. Please try again.");
-  // };
+      // ⏳ Real 2-second delay before redirect
+      await new Promise((res) => setTimeout(res, 2000));
+      navigate("/dashboard");
+    } catch (err) {
+      console.error("Google Signin error!", err);
+      setError("Google login failed. Please try again.");
+    }
+  };
+
+  const onGoogleLoginError = () => {
+    setError("Google login failed. Please try again.");
+  };
 
   return (
-    <div className="login-container">
-      <div className="login-card">
-        <h2 className="login-title">Welcome Back!</h2>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2 className="auth-title">Welcome back</h2>
+        <p className="auth-subtitle">Sign in to continue to Agendify.</p>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <label className="form-label">Username</label>
+        <form onSubmit={handleSubmit} className="auth-form">
+          <div>
+            <label className="auth-label">Username</label>
             <input
               type="text"
-              className="form-control"
+              className="auth-input"
               placeholder="Enter your username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -88,11 +90,11 @@ const LoginPage = () => {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Password</label>
+          <div>
+            <label className="auth-label">Password</label>
             <input
               type="password"
-              className="form-control"
+              className="auth-input"
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -100,26 +102,25 @@ const LoginPage = () => {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary w-100">Login</button>
+          <button type="submit" className="btn-primary btn-full">Sign In</button>
 
-          {successMessage && (
-            <div className="alert alert-success text-center mt-3">{successMessage}</div>
-          )}
-          {error && (
-            <div className="alert alert-danger text-center mt-2">{error}</div>
-          )}
+          {successMessage && <div className="alert-success">{successMessage}</div>}
+          {error && <div className="alert-danger">{error}</div>}
         </form>
 
-        <p className="mt-3">Don’t have an account? <Link to="/register">Register here</Link></p>
-
-{/*         <div className="google-login mt-3">
+        <div className="auth-divider"><span>or</span></div>
+        <div className="google-wrap">
           <GoogleLogin
             onSuccess={onGoogleLoginSuccess}
             onError={onGoogleLoginError}
             theme="outline"
             size="large"
           />
-        </div> */}
+        </div>
+
+        <p className="auth-footer">
+          Don’t have an account? <Link to="/register">Create one</Link>
+        </p>
       </div>
     </div>
   );

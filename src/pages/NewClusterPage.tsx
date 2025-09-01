@@ -1,7 +1,7 @@
 // src/pages/NewClusterPage.tsx
 import { useState, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import "../styles/NewClusterPage.css";
+import "../styles/auth.css";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
@@ -49,21 +49,40 @@ export default function NewClusterPage() {
   };
 
   return (
-    <div className="new-cluster-page">
-      <form onSubmit={handleSubmit} className="new-cluster-form">
-        <h1>+ New Agenda</h1>
-        {error && <div className="error">{error}</div>}
-        <label>
-          Agenda title (2–3 words max):
-          <input
-            type="text"
-            placeholder="e.g. Gaza Aid Debate"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-          />
-        </label>
-        <button type="submit">Create Agenda</button>
-      </form>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2 className="auth-title">Create a new agenda</h2>
+        <p className="auth-subtitle">Give your agenda a short, memorable title (2–3 words).</p>
+
+        {error && <div className="alert-danger" style={{ marginBottom: ".5rem" }}>{error}</div>}
+
+        <form onSubmit={handleSubmit} className="auth-form">
+          <div>
+            <label className="auth-label">Agenda title</label>
+            <input
+              type="text"
+              className="auth-input"
+              placeholder="e.g. Gaza Aid Debate"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              maxLength={60}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap" }}>
+            <span className="chip">Public Health Policy</span>
+            <span className="chip">Climate Action</span>
+            <span className="chip">Israel Gaza</span>
+          </div>
+
+          <div className="auth-actions">
+            <span style={{ color: "#7b809a", fontSize: ".9rem" }}>
+              {Math.max(0, 60 - topic.length)} chars left
+            </span>
+            <button type="submit" className="btn-primary">Create Agenda</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

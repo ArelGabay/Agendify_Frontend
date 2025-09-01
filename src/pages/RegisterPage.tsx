@@ -7,8 +7,8 @@ import axios from "axios";
 import defaultAvatar from "../assets/default-avatar.png";
 import maleAvatar from "../assets/male-avatar.png";
 import femaleAvatar from "../assets/female-avatar.png";
-import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
-import "../styles/register.css";
+import { CredentialResponse } from "@react-oauth/google";
+import "../styles/auth.css";
 
 const registerSchema = z.object({
   username: z
@@ -177,9 +177,10 @@ const RegisterPage = () => {
   const onGoogleLoginError = () => console.error("Google login failed");
 
   return (
-    <div className="register-container">
-      <div className="register-card">
-        <h2 className="register-title">Create Your Account</h2>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2 className="auth-title">Create your account</h2>
+        <p className="auth-subtitle">Join Agendify to craft targeted replies.</p>
 
         <div className="profile-picture-container">
           <img
@@ -224,49 +225,47 @@ const RegisterPage = () => {
           />
         </div>
 
-        <form onSubmit={handleRegister} className="register-form">
-          <div className="form-group">
-            <label className="form-label">Username</label>
+        <form onSubmit={handleRegister} className="auth-form">
+          <div>
+            <label className="auth-label">Username</label>
             <input
               type="text"
-              className={`form-control ${errors.username ? "is-invalid" : ""}`}
+              className={`auth-input ${errors.username ? "is-invalid" : ""}`}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
             />
             {errors.username && (
-              <div className="invalid-feedback">{errors.username}</div>
+              <div className="alert-danger">{errors.username}</div>
             )}
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Email</label>
+          <div>
+            <label className="auth-label">Email</label>
             <input
               type="email"
-              className={`form-control ${errors.email ? "is-invalid" : ""}`}
+              className={`auth-input ${errors.email ? "is-invalid" : ""}`}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
             {errors.email && (
-              <div className="invalid-feedback">{errors.email}</div>
+              <div className="alert-danger">{errors.email}</div>
             )}
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Password</label>
+          <div>
+            <label className="auth-label">Password</label>
             <input
               type="password"
-              className={`form-control ${errors.password ? "is-invalid" : ""}`}
+              className={`auth-input ${errors.password ? "is-invalid" : ""}`}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             {errors.password && (
-              <div className="invalid-feedback">{errors.password}</div>
+              <div className="alert-danger">{errors.password}</div>
             )}
           </div>
 
-          <button type="submit" className="btn btn-primary">
-            Register
-          </button>
+          <button type="submit" className="btn-primary btn-full">Sign Up</button>
 
           {successMessage && (
             <div className="alert alert-success text-center mt-3">
@@ -280,16 +279,9 @@ const RegisterPage = () => {
           )}
         </form>
 
-        <p className="mt-3">
-          Already have an account? <Link to="/login">Login here</Link>
+        <p className="auth-footer">
+          Already have an account? <Link to="/login">Sign in</Link>
         </p>
-
-        <GoogleLogin
-          onSuccess={onGoogleLoginSuccess}
-          onError={onGoogleLoginError}
-          theme="outline"
-          size="large"
-        />
       </div>
     </div>
   );
